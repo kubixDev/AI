@@ -1,4 +1,4 @@
-# 📗 Projekt 4 - sztuczne sieci neuronowe
+  # 📗 Projekt 4 - sztuczne sieci neuronowe
 
 
 ## ⭐ Zadanie 1
@@ -49,7 +49,7 @@ class Neuron:
 
 
     def _f(self, x):                                                # Metoda definiujaca funkcje aktywacji
-        return max(0.1 * x, x)                                      # z tabelki jest to Leaky ReLU
+        return max(0.01 * x, x)                                     # z tabelki jest to Leaky ReLU
 
 
     def __call__(self, xs):                                         # Pozwala na wywolanie obiektu klasy
@@ -74,18 +74,47 @@ class ANN:
             self.layers.append(layer)
 
 
+    def feedforward(self, inputs):                                  # Metoda, ktora przekazuje dane                          
+        self.inputs = [inputs]                                      # wejsciowe przez siec neuronowa
 
-    def feedforward(self, inputs):                                  # Metoda, ktora przekazuje dane
-        for layer in self.layers:                                   # wejsciowe przez siec neuronowa
+        for layer in self.layers:
             new_inputs = []
 
             for neuron in layer:
-                output = neuron.feedforward(inputs)
+                output = neuron(self.inputs[-1].reshape(-1, len(neuron.ws)))
                 new_inputs.append(output)
 
-            inputs = np.array(new_inputs)
+            self.inputs.append(np.array(new_inputs))
 
-        return inputs
+        return self.inputs[-1]
+    
+
+    def backpropagation(self, expected_output, learning_rate):
+        deltas = [expected_output - self.inputs[-1]]
+
+        for i in reversed(range(len(self.layers))):
+            layer = self.layers[i]
+            next_deltas = np.zeros(len(self.inputs[i]))
+
+            for j, neuron in enumerate(layer):
+                output = self.inputs[i + 1][j]
+                delta = deltas[-1][j] * (neuron._f(output) - output)
+                next_deltas = next_deltas + neuron.ws * delta
+                grad_w = output * delta
+                grad_b = delta
+                neuron.ws = neuron.ws + learning_rate * grad_w
+                neuron.b = neuron.b + learning_rate * grad_b
+
+            deltas.append(next_deltas)
+
+
+    def train(self, X, y, epochs, learning_rate):
+        for epoch in range(epochs):
+            for xi, yi in zip(X, y):
+                self.feedforward(xi)
+                self.backpropagation(yi, learning_rate)
+                
+            print("Epoch:", epoch)
 
 
 
@@ -159,6 +188,18 @@ layers = [input_size, hidden_layer_1_size, hidden_layer_2_size, output_size]
 # Inicjalizacja sztucznej sieci neuronowej
 ann = ANN(layers)
 
+# Przykladowe inputy i outputy (X to liczby, a y to wyniki sum tych liczb)
+X = np.array([[1, 1, 1], [1, 1, 2], [1, 1, 3], [1, 1, 4], [1, 1, 5], [1, 1, 6], [1, 1, 7]])
+y = np.array([[3], [4], [5], [6], [7], [8], [9]])
+
+# Testowy input dla ktorego bedzie zwracal wynik (reshape dla poprawnego ksztaltu macierzy)
+test_input = np.array([1, 1, 8]).reshape(-1, 3)
+
+# Rozpoczecie trenowania i zwrocenie wyniku dla testowego inputu
+ann.train(X, y, epochs=5000, learning_rate=0.01)
+predicted_sum = ann.feedforward(test_input).flatten()[0]
+print(predicted_sum)
+
 # Wizualizacja struktury
 visualize_ann(layers)
  ```
@@ -175,7 +216,7 @@ visualize_ann(layers)
 
 ****Wyjaśnienie:****
 
-> \[Neuron] def  \_\_init__(self, n_inputs, bias = 0.0, weights = None):
+> [Neuron] def  \_\_init__(self, n_inputs, bias = 0.0, weights = None):
 
 * Jest to dostarczony konstruktor klasy Neuron
 * **n_inputs** - liczba wejść dla neuronu
@@ -188,7 +229,7 @@ visualize_ann(layers)
 
 <br>
 
-> \[Neuron] def _f(self, x):
+> [Neuron] def _f(self, x):
 
 * Jest to dostarczona metoda, która definiuje funkcję aktywacji
 * **x** - wartość wejściowa do funkcji aktywacji
@@ -198,7 +239,7 @@ visualize_ann(layers)
 
 <br>
 
-> \[Neuron] def  \_\_call__(self, xs):
+> [Neuron] def  \_\_call__(self, xs):
 
 * Jest to dostarczona metoda, która pozwala traktować obiekt klasy Neuron jak funkcję
 * **xs** - wejściowe wartości (tablica liczb)
@@ -225,13 +266,50 @@ visualize_ann(layers)
 
 * Jest to metoda, która przekazuje dane wejściowe przez sieć neuronową
 * **inputs** - wejściowe wartości
-* na początku iterujemy przez każdą warstwę w sieci neuronowej
-	* w pętli tworzona jest pusta lista **new_inputs**, która będzie przechowywać wyniki (wyjścia) neuronów z bieżącej warstwy
+* na początku inicjujemy listę wejściowych wartości do sieci
+* następnie iterujemy przez każdą warstwę w sieci neuronowej
+	* w pętli tworzona jest pusta lista **new_inputs**, która będzie przechowywać wyjścia neuronów z bieżącej warstwy
 	* następnie iterujemy przez każdy neuron w bieżącej warstwie
-		* w zmiennej **output** zapisujemy wyjście neuronu (po przekazaniu danych wejściowych inputs, wywołując metodę \_\_call__)
-		* dodajemy obliczony wynik do listy new_inputs
-	* na koniec pętli konwertujemy listę **new_inputs** na tablicę numpy, aby można było ją użyć jako dane wejściowe dla następnej warstwy
-* ostatecznie zwracamy wynik po przejściu przez wszystkie warstwy sieci
+		* w zmiennej **output** zapisujemy obliczony wynik dla bieżącego neuronu (przekazujemy odpowiednio sformatowane ostatnie wejście)
+			* wejście musi pasować do liczby wag w bieżącym neuronie, **-1** oznacza, że liczba wierszy będzie automatycznie obliczona aby zgadzała się z liczbą wag
+		* dodajemy obliczony wynik do listy **new_inputs**
+	* pod koniec pierwszej pętli dodajemy całą listę **new_inputs** do listy wszystkich wejść, aby można było ją użyć jako dane wejściowe dla następnej warstwy
+* zwracamy wynik - ostatnie wejście z listy (jest już po przejściu przez wszystkie warstwy sieci)
+
+<br>
+
+> def  backpropagation(self, expected_output, learning_rate):
+
+* Jest to metoda, która aktualizuje wagi i biasy, aby zmniejszyć błąd wyjściowy w przyszłych iteracjach
+* **expected_output** - oczekiwane wyjście sieci neuronowej
+* **learning_rate** - współczynnik uczenia się (im większy, tym szybciej i mniej dokładnie)
+* na początku inicjujemy listę **deltas** zawierającą różnicę między oczekiwanym a rzeczywistym wyjściem
+* następnie pętla iteruje przez wszystkie warstwy sieci od końca do początku
+	* w **layer** ustawiamy obecnie przetwarzaną warstwę neuronów
+	* dalej tworzymy tablicę **next_deltas**, która jest wypełniona zerami i ma za zadanie przechowywać błędy dla neuronów z poprzedniej warstwy
+	* wewnętrzna pętla for iteruje przez każdy neuron w aktualnej warstwie
+		* w zmiennej **output** zapisujemy wyjście neuronu "j" w warstwie "i + 1"
+		* w zmiennej **delta** zapisujemy błąd dla neuronu
+		* następnie aktualizujemy **next_deltas** o wpływ błędu obecnego neuronu na poprzednią warstwę
+		* dalej obliczamy gradient wag w **grad_w** (jak bardzo każda waga powinna się zmienić)
+		* kolejno obliczamy gradient biasu w w **grad_b** (jak bardzo bias powinien się zmienić)
+		* pod koniec wewnętrznej pętli aktualizujemy wagi i bias dla neuronu na podstawie gradientów i współczynnika uczenia
+	* natomiast pod koniec zewnętrznej pętli dodajemy obliczone błędy dla warstwy "i" do listy **deltas**, aby można było je wykorzystać przy następnym obrocie pętli
+
+<br>
+
+> def  train(self, X, y, epochs, learning_rate):
+
+* Jest to metoda, która odpowiada za proces uczenia sieci neuronowej
+* **X** - wejściowe dane treningowe
+* **y** - oczekiwane wyjścia dla danych wejściowych
+* **epochs** - ile razy sieć przejdzie przez cały zbiór danych treningowych
+* **learning_rate** - współczynnik uczenia się
+* na początku pętla iteruje przez określoną liczbę epochs
+	* wewnętrzna pętla iteruje po danych treningowych (funkcja **zip()** łączy elementy z dwóch list "X" i "y" w pary)
+		* wywołujemy metodę **feedforward** żeby obliczyć wyjścia sieci dla "xi"
+		* wywołujemy metodę  **backpropagation** żeby zaktualizować wagi na podstawie błędów między rzeczywistym a oczekiwanym wyjściem dla "yi"
+	* wyświetlamy numer aktualnej wartości epoch aby śledzić postęp
 
 <br>
 
@@ -257,23 +335,24 @@ visualize_ann(layers)
 * **layer_idx** - indeks bieżącej warstwy (1 dla pierwszej warstwy ukrytej itd.)
 * **num_nodes** - liczba neuronów w bieżącej warstwie
 * używamy **enumerate()** aby móc iterować przez elementy listy i mieć dostęp do ich indeksów
-* w tym przypadku iterujemy przez listę **layers** od elementu z indeksem 1, do elementu przedostatniego (co określa \[1:-1] oraz start = 1)
+* w tym przypadku iterujemy przez listę **layers** od elementu z indeksem 1, do elementu przedostatniego (co określa [1:-1] oraz start = 1)
 * działamy tak jak poprzednio, dodając węzły do grafu, ustalając ich kolejne pozycje, nazwy oraz zwiększając identyfikator
-	* w pos\[node_id] znajduje się teraz **layer_idx**, co pozwoli na ułożenie każdej z warstw kolumnami przyrastającymi w dół
+	* w pos[node_id] znajduje się teraz **layer_idx**, co pozwoli na ułożenie każdej z warstw kolumnami przyrastającymi w dół
 ***
 * dalej tworzymy węzeł dla warstwy wyjściowej
 * iterujemy po liczbie neuronów w warstwie wyjściowej (ostatni element listy **layers**)
 * działamy tak jak poprzednio, dodając węzły do grafu, ustalając ich kolejne pozycje, nazwy oraz zwiększając identyfikator
-	* w pos\[node_id] znajduje się teraz **layer_count**, który ustawia węzły wyjściowe na samym końcu wykresu (w tym zadaniu jest to i tak tylko jeden węzeł)
+	* w pos[node_id] znajduje się teraz **layer_count**, który ustawia węzły wyjściowe na samym końcu wykresu (w tym zadaniu jest to i tak tylko jeden węzeł)
 ***
 * ostatecznie należy dodać krawędzie między węzłami w warstwach
 * **prev_layer_nodes** - przechowuje numeracje węzłów z poprzedniej warstwy
-	* początkowo przypisujemy jej sekwencję liczb od 0 do "layers\[0] - 1" używając metody range(), co odpowiada liczbie neuronów w warstwie wejściowej
+	* początkowo przypisujemy jej sekwencję liczb od 0 do "layers[0] - 1" używając metody range(), co odpowiada liczbie neuronów w warstwie wejściowej
 * **current_layer_start** - określa indeks początkowy węzłów w aktualnej warstwie
 	* początkowo przypisujemy jej wartość layers[0], dzięki czemu zaczynamy od pierwszego węzła w warstwie wejściowej
+
 <br>
 
-* zaczynamy od iterowania przez warstwy sieci neuronowej (z użyciem \[1:] ponieważ już obsłużyliśmy warstwę wejściową)
+* zaczynamy od iterowania przez warstwy sieci neuronowej (z użyciem [1:] ponieważ już obsłużyliśmy warstwę wejściową)
 	* w zmiennej **current_layer_nodes** przechowujemy numeracje węzłów aktualnej warstwy
 	* dalej rozpoczynamy pętlę przez węzły z poprzedniej warstwy, aby utworzyć krawędzie
 		* wewnętrzna pętla iteruje przez węzły z aktualnej warstwy
@@ -283,3 +362,8 @@ visualize_ann(layers)
 ***
 * w końcu w funkcji rysujemy graf G na podstawie określonych parametrów za pomocą nx.draw()
 * używając plt.show() wyświetlamy wykres
+
+<br>
+<br>
+
+Pod koniec programu ustawiamy parametry warstw, aby były zgodne z dostarczoną strukturą ze zdjęcia. Inicjalizujemy sieć neuronową, tworzymy przykładowe inputy, outputy oraz wartość do przetestowania. Wyświetlamy również zwizualizowaną strukturę.
